@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>React via CDN</title>
+    <!-- React and ReactDOM via CDN -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    <!-- Babel for JSX support -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  </head>
+  <body>
+    <div id="foo"></div>
+
+    <!-- Your JSX script (type="text/babel") -->
+    <script type="text/babel">
+      // Type - 1 => use JSX
+      // const element = <h1 title="foo">hello</h1>
+
+      // JSX like <h1>Hello</h1> gets compiled by Babel
+      // Old transform (React <17): React.createElement("h1", null, "Hello")
+      // New transform (React 17+): jsx("h1", { children: "Hello" }) from react/jsx-runtime
+      // No need to import React in React 17+
+      // Both versions produce a React element (i.e., a JS object representation of the UI)
+
+      // Type - 2 => React.createElement (BABEL changes the JSX into this React.createElement )
+      // const element = React.createElement(
+      //   "h1",
+      //   {title: "foo"},
+      //   "Hello"
+      // )
+
+      // Type - 3 => use Vanilla Javascript ( transfer React.createElement in a proper object, Official Doc Link: https://github.com/facebook/react/blob/f4cc45ce962adc9f307690e1d5cfa28a288418eb/packages/react/src/ReactElement.js#L111 )
+      const element = {
+        type: "h1",
+        props: {
+          title: "foo",
+          children: "Hello"
+        }
+      }
+
+      const container = document.getElementById("foo");
+
+      // RENDER WITH REACT -
+      // ReactDOM.createRoot(container).render(element);
+
+      // RENDER WITHOUT REACT ( VANILL JAVASCRIPT )
+      const node = document.createElement(element.type)
+      node["title"] = element.props.title
+
+      const text = document.createTextNode("")
+      text["nodeValue"] = element.props.children
+
+      node.appendChild(text)
+      container.appendChild(node)
+
+    </script>
+  </body>
+</html>

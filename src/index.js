@@ -50,11 +50,55 @@ function render(element,container) {
         })
 
     // Recursively adding all the Nodes to the Child
+    // PROBLEM WITH THIS RECURSIVE CALL
+    // -- Once start rendering, we won't stop until we have
+    // rendered the complete element tree. If the element
+    // tree is big, it may block the main thread for too long.
+    // and if the browsers needs to do high priority stuff like
+    // handling user input or keeping an animation smooth,
+    // it will have to wait until the render finishes.
     element.props.children.forEach(child => {
         render(child,dom)
     });
 
     container.appendChild(dom)
+}
+
+// breaking the work into small units,
+// and after we finish each unit we'll let the
+// browser interrupt the rendering if there's
+// anything else that needs to be done.
+let nextUnitOfWork = null
+
+function workLoop(deadline) {
+    let shouldYield = false
+
+    while (nextUnitOfWork && !shouldYield) {
+        nextUnitOfWork = performUnitOfWork(
+            nextUnitOfWork
+        )
+
+        shouldYield = deadline.timeRemaining() < 1
+    }
+
+    // We use requestIdleCallback to make a loop. 
+    // You can think of requestIdleCallback as a setTimeout, 
+    // but instead of us telling it when to run, the browser 
+    // will run the callback when the main thread is idle.
+    // React doesn’t use requestIdleCallback anymore (LINK: https://github.com/facebook/react/issues/11171#issuecomment-417349573)
+    //  Now it uses the scheduler package. (LINK: https://github.com/facebook/react/tree/master/packages/scheduler)
+    // But for this use case it’s conceptually the same.
+
+    // requestIdleCallback also gives us a deadline parameter. 
+    // We can use it to check how much time we have 
+    // until the browser needs to take control again.
+    requestIdleCallback(workLoop)
+}
+
+requestIdleCallback(workLoop)
+
+function performUnitOfWork(nextUnitOfWork) {
+    // TODO
 }
 
 // ZACT is the name of our library

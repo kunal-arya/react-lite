@@ -356,10 +356,48 @@ function performUnitOfWork(fiber) {
     }
 }
 
+let wipFiber = null
+let hookIndex = null
 
 function updateFunctionComponent(fiber) {
-  const children = [fiber.type(fiber.props)]
-  reconcileChildren(fiber, children)
+    wipFiber = fiber
+    hookIndex = 0
+    wipFiber.hooks = []
+    const children = [fiber.type(fiber.props)]
+    reconcileChildren(fiber, children)
+}
+
+
+function useState(initial) {
+  const oldHook =
+    wipFiber.alternate &&
+    wipFiber.alternate.hooks &&
+    wipFiber.alternate.hooks[hookIndex]
+
+    const hook = {
+        state: oldHook ? oldHook.state : initial,
+        queue: [],
+    }
+
+    const actions = oldHook ? oldHook.queue : []
+    actions.forEach(action => {
+        hook.state = action(hook.state)
+    })
+
+    const setState = action => {
+        hook.queue.push(action)
+        wipRoot = {
+        dom: currentRoot.dom,
+        props: currentRoot.props,
+        alternate: currentRoot,
+        }
+        nextUnitOfWork = wipRoot
+        deletions = []
+    }
+
+  wipFiber.hooks.push(hook)
+  hookIndex++
+  return [hook.state, setState]
 }
 
 function updateHostComponent(fiber) {
@@ -466,7 +504,8 @@ function reconcileChildren(wipFiber, elements) {
 // ZACT is the name of our library
 const Zact = {
     createElement,
-    render: renderV2
+    render: renderV2,
+    useState,
 }
 
 
@@ -485,24 +524,19 @@ Function components are differents in two ways:
 */
 
 /** @jsx Zact.createElement */
-function App(props) {
-  return <h1>Hi {props.name}</h1>
+function Counter() {
+  const [state, setState] = Zact.useState(1)
+  return (
+    <div>
+        <h1>
+        Count: {state}
+        </h1>
+        <button onClick={() => setState(c => c + 1)}>Click Me!</button>
+    </div>
+  )
 }
+const element = <Counter />
 
-const element = <App name="foo" />
-
-// BABEL transform above form JSX to JS
-// function App(props) {
-//   return Didact.createElement(
-//     "h1",
-//     null,
-//     "Hi ",
-//     props.name
-//   )
-// }
-// const element = Didact.createElement(App, {
-//   name: "foo",
-// })
 const container = document.getElementById("root")
 
 Zact.render(element,container)

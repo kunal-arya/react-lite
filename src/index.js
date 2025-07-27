@@ -215,24 +215,40 @@ function commitRoot() {
 function commitWork(fiber) {
     if(!fiber) return
 
-    const domParent = fiber.parent.dom
+    let domParentFiber = fiber.parent
+
+    // First, to find the parent of a DOM node 
+    // we’ll need to go up the fiber tree 
+    // until we find a fiber with a DOM node.
+    while(!domParentFiber.dom) {
+        domParentFiber = domParentFiber.parent
+    }
+
+    const domParent = domParentFiber.dom
 
     if(fiber.effectTag === "PLACEMENT" && fiber.dom != null) {
         domParent.appendChild(fiber.dom)
         
-    } else if (fiber.effectTag === "DELETION") {
-        domParent.removeChild(fiber.dom)
-
     } else if (fiber.effectTag === "UPDATE" && fiber.dom != null) {
         updateDom(
             fiber.dom,
             fiber.alternate.props,
             fiber.props
         )
+    } else if (fiber.effectTag === "DELETION") {
+      commitDeletion(fiber, domParent)
     }
 
     commitWork(fiber.child)
     commitWork(fiber.sibling)
+}
+
+function commitDeletion(fiber, domParent) {
+    if (fiber.dom) {
+        domParent.removeChild(fiber.dom)
+    } else {
+        commitDeletion(fiber.child, domParent)
+    }
 }
 
 /**
@@ -315,6 +331,38 @@ requestIdleCallback(workLoop);
  * @returns {object|null} The next fiber to process, or null if there's no more work.
  */
 function performUnitOfWork(fiber) {
+    const isFunctionComponent =
+        fiber.type instanceof Function
+    if (isFunctionComponent) {
+        updateFunctionComponent(fiber)
+    } else {
+        updateHostComponent(fiber)
+    }
+
+    // 3. Return the next unit of work.
+    // The next unit of work is the first child of the current fiber.
+    if(fiber.child) {
+        return fiber.child;
+    }
+
+    // If there's no child, we look for a sibling.
+    let nextFiber = fiber;
+    while(nextFiber) {
+        if(nextFiber.sibling) {
+            return nextFiber.sibling;
+        }
+        // If no sibling, we go up to the parent and check for its sibling.
+        nextFiber = nextFiber.parent;
+    }
+}
+
+
+function updateFunctionComponent(fiber) {
+  const children = [fiber.type(fiber.props)]
+  reconcileChildren(fiber, children)
+}
+
+function updateHostComponent(fiber) {
     // 1. Create the DOM node for the current fiber if it doesn't exist.
     if(!fiber.dom) {
         fiber.dom = createDOM(fiber);
@@ -335,22 +383,6 @@ function performUnitOfWork(fiber) {
     // 2. Create new fibers for each of the current fiber's children.
     const elements = fiber.props.children;
     reconcileChildren(fiber,elements)
-
-    // 3. Return the next unit of work.
-    // The next unit of work is the first child of the current fiber.
-    if(fiber.child) {
-        return fiber.child;
-    }
-
-    // If there's no child, we look for a sibling.
-    let nextFiber = fiber;
-    while(nextFiber) {
-        if(nextFiber.sibling) {
-            return nextFiber.sibling;
-        }
-        // If no sibling, we go up to the parent and check for its sibling.
-        nextFiber = nextFiber.parent;
-    }
 }
 
 // Reconciling code, in a general sense, refers to the process
@@ -443,36 +475,37 @@ const Zact = {
 // ================= APP EXAMPLE ============================ //
 // ========================================================== //
 
+
+/*
+Function components are differents in two ways:
+
+1. the fiber from a function component doesn’t have a DOM node
+2. and the children come from running the function instead of 
+    getting them directly from the props
+*/
+
 /** @jsx Zact.createElement */
+function App(props) {
+  return <h1>Hi {props.name}</h1>
+}
+
+const element = <App name="foo" />
+
+// BABEL transform above form JSX to JS
+// function App(props) {
+//   return Didact.createElement(
+//     "h1",
+//     null,
+//     "Hi ",
+//     props.name
+//   )
+// }
+// const element = Didact.createElement(App, {
+//   name: "foo",
+// })
 const container = document.getElementById("root")
 
-const updateValue = e => {
-    rerender(e.target.value)
-}
-
-const rerender = (value) => {
-    const element = (
-        <div>
-            <input onInput={updateValue} value={value} />
-            <h2>Hello {value}</h2>
-        </div>
-    )
-
-    // Babel will transform the above JSX into this below function
-    // Zact.createElement(
-    //    "div",
-    //    {
-    //     style: "background: salmon"
-    //    },
-    //    Zact.createElement("h1", null, "Hello World"),
-    //    Zact.createElement("h2", {style: "text-align: right"}, "from Zact")
-    // )
-
-    // ReactDOM.createRoot(container).render(element);
-    Zact.render(element,container)
-}
-
-rerender("World")
+Zact.render(element,container)
 
 
 
